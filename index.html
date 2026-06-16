@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0f1e">
+<title>UK Pay Calculator</title>
+<link rel="manifest" href="manifest.json">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  background: #0a0f1e;
+  color: #f0f4ff;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── LAYOUT ── */
+.wrap { display: flex; min-height: 100vh; }
+.left {
+  width: 340px; flex-shrink: 0;
+  background: #111827;
+  border-right: 1px solid #1e2d45;
+  overflow-y: auto; height: 100vh;
+  position: sticky; top: 0;
+}
+.right { flex: 1; padding: 24px; overflow-y: auto; }
+
+@media (max-width: 680px) {
+  .wrap { flex-direction: column; }
+  .left { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid #1e2d45; }
+  .right { padding: 16px; padding-bottom: 90px; }
+}
+
+/* ── LOGO ── */
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  padding: 20px 16px 0;
+  padding-top: calc(20px + env(safe-area-inset-top, 0px));
+}
+.logo-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: rgba(0,230,118,.12); border: 1px solid rgba(0,230,118,.3);
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.logo-title { font-size: 15px; font-weight: 700; }
+.logo-sub { font-size: 11px; color: #8899bb; margin-top: 2px; }
+
+/* ── SALARY CARD ── */
+.sal-card {
+  margin: 14px 14px 0;
+  background: linear-gradient(135deg, #0d1f3c, #0a1628);
+  border: 1px solid rgba(0,230,118,.25);
+  border-radius: 14px; padding: 16px;
+}
+.sal-lbl {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: #00e676; margin-bottom: 10px;
+}
+.sal-row {
+  display: -webkit-box; display: flex;
+  -webkit-box-align: center; align-items: center;
+  gap: 8px;
+  background: rgba(0,0,0,.4);
+  border: 1.5px solid #263347;
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 10px;
+}
+.sal-sign {
+  font-size: 28px; font-weight: 800; color: #00e676;
+  line-height: 1; flex-shrink: 0;
+}
+#salIn {
+  -webkit-appearance: none; appearance: none;
+  background: transparent; border: none; outline: none;
+  font-size: 28px; font-weight: 700; color: #f0f4ff;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  width: 100%; min-width: 0; flex: 1;
+  padding: 0;
+}
+#salIn::placeholder { color: #4a5a7a; }
+
+.pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill {
+  padding: 5px 13px; border-radius: 20px;
+  font-size: 12px; font-weight: 600;
+  border: 1.5px solid #263347;
+  background: transparent; color: #8899bb;
+  cursor: pointer;
+  font-family: -apple-system, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+.pill.on { background: #00e676; color: #000; border-color: #00e676; }
+
+/* ── SECTIONS ── */
+.sec { padding: 0 14px 14px; border-bottom: 1px solid #1e2d45; }
+.sec-t {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: #4a5a7a;
+  margin: 14px 0 10px;
+}
+
+/* ── FIELDS ── */
+.fld { margin-bottom: 10px; }
+.fld label { display: block; font-size: 12px; font-weight: 500; color: #8899bb; margin-bottom: 4px; }
+.inp {
+  width: 100%; padding: 11px 12px;
+  background: #1c2535; border: 1.5px solid #263347; border-radius: 10px;
+  color: #f0f4ff; font-size: 15px;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-appearance: none; appearance: none; outline: none;
+}
+.inp:focus { border-color: #00e676; }
+.inp-w { position: relative; }
+.inp-pre {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: #00e676; font-weight: 700; font-size: 15px; pointer-events: none;
+}
+.inp-w .inp { padding-left: 26px; }
+select.inp {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238899bb' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+  background-color: #1c2535; padding-right: 34px; cursor: pointer;
+}
+
+/* ── TOGGLES ── */
+.tog-r {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid #1e2d45;
+}
+.tog-r:last-child { border-bottom: none; }
+.tog-r-lbl { font-size: 13px; }
+.tog-r-sub { font-size: 11px; color: #8899bb; margin-top: 2px; }
+.tog { position: relative; width: 46px; height: 28px; flex-shrink: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.tog input { opacity: 0; width: 0; height: 0; position: absolute; }
+.tog-t { position: absolute; inset: 0; background: #263347; border-radius: 14px; transition: background .2s; }
+.tog-t::after {
+  content: ''; position: absolute; left: 4px; top: 4px;
+  width: 20px; height: 20px; background: #fff; border-radius: 50%;
+  transition: transform .2s; box-shadow: 0 2px 4px rgba(0,0,0,.3);
+}
+.tog input:checked + .tog-t { background: #00c853; }
+.tog input:checked + .tog-t::after { transform: translateX(18px); }
+
+/* ── OVERTIME ── */
+.ot-r { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #1e2d45; }
+.ot-r:last-child { border-bottom: none; }
+.ot-b { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; flex-shrink: 0; min-width: 46px; text-align: center; }
+.b1 { background: rgba(255,171,64,.15); color: #ffab40; }
+.b2 { background: rgba(68,138,255,.15); color: #448aff; }
+.b3 { background: rgba(179,136,255,.15); color: #b388ff; }
+.ot-l { font-size: 12px; color: #8899bb; flex: 1; }
+.ot-i {
+  width: 64px; padding: 7px 8px; text-align: right;
+  background: #1c2535; border: 1.5px solid #263347; border-radius: 8px;
+  color: #f0f4ff; font-size: 15px; font-weight: 600;
+  font-family: -apple-system, sans-serif;
+  -webkit-appearance: none; appearance: none; outline: none;
+}
+.ot-i:focus { border-color: #ffab40; }
+
+/* ── CALC BUTTON ── */
+.btn-wrap { padding: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 681px) { .btn-wrap { padding-bottom: 14px; } }
+.cbtn {
+  width: 100%; background: #00e676; color: #000;
+  border: none; border-radius: 14px;
+  font-family: -apple-system, sans-serif; font-size: 15px; font-weight: 800;
+  padding: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+.cbtn:active { opacity: .85; }
+
+/* ── EMPTY STATE ── */
+.empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 60vh; gap: 14px; color: #4a5a7a; text-align: center;
+}
+.empty-icon { font-size: 56px; opacity: .35; }
+.empty p { font-size: 14px; max-width: 200px; line-height: 1.6; }
+
+/* ── HERO ── */
+.hero {
+  background: linear-gradient(135deg, #0a1f14, #051a0e);
+  border: 1px solid rgba(0,230,118,.3); border-radius: 20px;
+  padding: 24px 20px 18px; margin-bottom: 14px;
+}
+.h-lbl { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #00e676; margin-bottom: 6px; }
+.h-amt { font-size: 50px; font-weight: 800; line-height: 1; display: flex; align-items: flex-start; gap: 4px; }
+.h-cur { font-size: 24px; font-weight: 700; color: #00e676; margin-top: 8px; }
+.h-per { font-size: 13px; color: #8899bb; margin-top: 8px; }
+.h-ann { color: #00e676; font-weight: 600; }
+.h-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1px solid rgba(0,230,118,.12);
+}
+@media (max-width: 400px) { .h-stats { grid-template-columns: repeat(2, 1fr); gap: 10px 0; } }
+.h-stat { text-align: center; }
+.h-sv { font-size: 14px; font-weight: 700; }
+.h-sl { font-size: 10px; color: #4a5a7a; margin-top: 3px; text-transform: uppercase; letter-spacing: .05em; }
+
+/* ── SUMMARY GRID ── */
+.sg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+@media (max-width: 360px) { .sg { grid-template-columns: 1fr; } }
+.sc { background: #111827; border: 1px solid #1e2d45; border-radius: 14px; padding: 14px; }
+.sc-l { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #4a5a7a; margin-bottom: 5px; }
+.sc-v { font-size: 21px; font-weight: 800; }
+.sc-s { font-size: 11px; color: #8899bb; margin-top: 3px; }
+.cg { color: #00e676; } .cr { color: #ff5252; } .ca { color: #ffab40; }
+.cb { color: #448aff; } .cp { color: #b388ff; } .c2 { color: #8899bb; }
+
+/* ── OT SUMMARY ── */
+.ots {
+  background: rgba(68,138,255,.08); border: 1px solid rgba(68,138,255,.2);
+  border-radius: 14px; padding: 14px; margin-bottom: 14px;
+}
+.ots-t { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #448aff; margin-bottom: 10px; }
+.ot-line { display: flex; justify-content: space-between; font-size: 12px; color: #8899bb; padding: 3px 0; }
+.ot-line span:last-child { color: #f0f4ff; font-weight: 600; }
+
+/* ── BREAKDOWN ── */
+.bk { background: #111827; border: 1px solid #1e2d45; border-radius: 14px; overflow: hidden; margin-bottom: 14px; }
+.bk-t { padding: 12px 16px 10px; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #4a5a7a; border-bottom: 1px solid #1e2d45; }
+.bk-h { display: grid; grid-template-columns: 1fr 90px 90px 80px; padding: 8px 16px; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #4a5a7a; background: rgba(255,255,255,.02); }
+.bk-h span:not(:first-child) { text-align: right; }
+.bk-r { display: grid; grid-template-columns: 1fr 90px 90px 80px; padding: 11px 16px; border-top: 1px solid #1e2d45; align-items: center; }
+.bk-n { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.bd { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.bk-v { font-size: 13px; text-align: right; }
+.bk-r.ded .bk-v { color: #ff5252; }
+.bk-r.add .bk-v { color: #448aff; }
+.bk-r.grs .bk-v { font-weight: 600; }
+.bk-r.tot { background: rgba(0,230,118,.08); border-top: 1px solid rgba(0,230,118,.2); }
+.bk-r.tot .bk-n { font-weight: 700; font-size: 14px; }
+.bk-r.tot .bk-v { font-weight: 700; color: #00e676; font-size: 14px; }
+@media (max-width: 460px) {
+  .bk-h { grid-template-columns: 1fr 88px 78px; }
+  .bk-h span:last-child { display: none; }
+  .bk-r { grid-template-columns: 1fr 88px 78px; }
+  .bk-r .bk-v:last-child { display: none; }
+}
+
+/* ── VISUAL ── */
+.vc { background: #111827; border: 1px solid #1e2d45; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+.vc-t { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #4a5a7a; margin-bottom: 14px; }
+.dw { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
+svg.dn { width: 90px; height: 90px; transform: rotate(-90deg); flex-shrink: 0; }
+.leg { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.li { display: flex; align-items: center; gap: 8px; }
+.ld { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ll { font-size: 12px; color: #8899bb; flex: 1; }
+.lp { font-size: 12px; font-weight: 700; }
+.bi { margin-bottom: 10px; }
+.bi:last-child { margin-bottom: 0; }
+.bh { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.bn { font-size: 12px; color: #8899bb; }
+.bv { font-size: 12px; font-weight: 700; }
+.bt { height: 6px; background: #263347; border-radius: 3px; overflow: hidden; }
+.bf { height: 100%; border-radius: 3px; transition: width .5s; }
+
+/* ── EXCEL BTN ── */
+.xbtn {
+  width: 100%; background: #111827; border: 1.5px solid #263347; border-radius: 14px;
+  color: #f0f4ff; font-family: -apple-system, sans-serif; font-size: 14px; font-weight: 700;
+  padding: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-bottom: 14px; -webkit-tap-highlight-color: transparent;
+}
+.xbtn:active { opacity: .7; }
+.xi { width: 28px; height: 28px; background: #1d6f42; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #fff; }
+
+/* ── MOBILE BAR ── */
+@media (max-width: 680px) {
+  .mob {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(10,15,30,.96);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid #1e2d45;
+    padding: 10px 14px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    display: flex; gap: 10px; z-index: 100;
+  }
+  .btn-wrap { display: none; }
+  .mob .cbtn { flex: 1; padding: 14px; }
+  .mob-x {
+    width: 52px; height: 52px; flex-shrink: 0;
+    background: #111827; border: 1.5px solid #263347; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 22px; -webkit-tap-highlight-color: transparent;
+  }
+  .mob-x:active { opacity: .7; }
+  .dsk-x { display: none; }
+}
+@media (min-width: 681px) { .mob { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══ LEFT PANEL ══ -->
+<div class="left">
+  <div class="logo">
+    <div class="logo-icon">💷</div>
+    <div>
+      <div class="logo-title">UK Pay Calculator</div>
+      <div class="logo-sub">2026 / 27 Tax Year</div>
+    </div>
+  </div>
+
+  <!-- SALARY INPUT -->
+  <div class="sal-card">
+    <div class="sal-lbl">Gross Salary</div>
+    <div class="sal-row">
+      <span class="sal-sign">£</span>
+      <input id="salIn" type="text" inputmode="decimal" placeholder="30000" autocomplete="off">
+    </div>
+    <div class="pills">
+      <button class="pill on" data-p="annual">Annual</button>
+      <button class="pill" data-p="monthly">Monthly</button>
+      <button class="pill" data-p="weekly">Weekly</button>
+      <button class="pill" data-p="hourly">Hourly</button>
+    </div>
+  </div>
+
+  <!-- GENERAL -->
+  <div class="sec">
+    <div class="sec-t">General</div>
+    <div class="fld">
+      <label>Tax Year</label>
+      <select class="inp" id="tyear">
+        <option value="2627" selected>2026 / 27</option>
+        <option value="2526">2025 / 26</option>
+        <option value="2425">2024 / 25</option>
+      </select>
+    </div>
+    <div class="fld">
+      <label>Weekly Hours</label>
+      <input class="inp" type="text" inputmode="decimal" id="hrs" value="40">
+    </div>
+    <div class="fld">
+      <label>Annual Bonus</label>
+      <div class="inp-w"><span class="inp-pre">£</span>
+        <input class="inp" type="text" inputmode="decimal" id="bonus" placeholder="0">
+      </div>
+    </div>
+    <div class="fld">
+      <label>Tax Code (optional)</label>
+      <input class="inp" type="text" id="tcode" placeholder="1257L" maxlength="8" style="text-transform:uppercase">
+    </div>
+  </div>
+
+  <!-- OPTIONS -->
+  <div class="sec">
+    <div class="sec-t">Options</div>
+    <div class="tog-r">
+      <div><div class="tog-r-lbl">Scotland</div><div class="tog-r-sub">Scottish income tax rates</div></div>
+      <label class="tog"><input type="checkbox" id="scot"><span class="tog-t"></span></label>
+    </div>
+    <div class="tog-r">
+      <div class="tog-r-lbl">No National Insurance</div>
+      <label class="tog"><input type="checkbox" id="noNI"><span class="tog-t"></span></label>
+    </div>
+    <div class="tog-r">
+      <div class="tog-r-lbl">Blind Person's Allowance</div>
+      <label class="tog"><input type="checkbox" id="blind"><span class="tog-t"></span></label>
+    </div>
+    <div class="tog-r">
+      <div class="tog-r-lbl">Show Employer's NI</div>
+      <label class="tog"><input type="checkbox" id="showENI"><span class="tog-t"></span></label>
+    </div>
+  </div>
+
+  <!-- OVERTIME -->
+  <div class="sec">
+    <div class="sec-t">Overtime (monthly hours)</div>
+    <div class="ot-r">
+      <span class="ot-b b1">×1.25</span>
+      <span class="ot-l">Time &amp; a Quarter</span>
+      <input class="ot-i" type="text" inputmode="decimal" id="ot1" placeholder="0">
+    </div>
+    <div class="ot-r">
+      <span class="ot-b b2">×1.50</span>
+      <span class="ot-l">Time &amp; a Half</span>
+      <input class="ot-i" type="text" inputmode="decimal" id="ot2" placeholder="0">
+    </div>
+    <div class="ot-r">
+      <span class="ot-b b3">×2.00</span>
+      <span class="ot-l">Double Time</span>
+      <input class="ot-i" type="text" inputmode="decimal" id="ot3" placeholder="0">
+    </div>
+  </div>
+
+  <!-- PENSION -->
+  <div class="sec">
+    <div class="sec-t">Pension</div>
+    <div class="fld">
+      <label>Type</label>
+      <select class="inp" id="penT">
+        <option value="none">No pension</option>
+        <option value="pct">% of salary</option>
+        <option value="amt">Fixed monthly £</option>
+      </select>
+    </div>
+    <div class="fld" id="pPctF" style="display:none">
+      <label>Contribution %</label>
+      <input class="inp" type="text" inputmode="decimal" id="pPct" placeholder="5">
+    </div>
+    <div class="fld" id="pAmtF" style="display:none">
+      <label>Monthly Amount</label>
+      <div class="inp-w"><span class="inp-pre">£</span>
+        <input class="inp" type="text" inputmode="decimal" id="pAmt" placeholder="200">
+      </div>
+    </div>
+    <div class="fld">
+      <label>Scheme</label>
+      <select class="inp" id="pScheme">
+        <option value="relief">Relief at Source</option>
+        <option value="sacrifice">Salary Sacrifice</option>
+        <option value="employer">Employer Scheme</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- STUDENT LOAN -->
+  <div class="sec">
+    <div class="sec-t">Student Loan</div>
+    <div class="tog-r"><div class="tog-r-lbl">Plan 1 <span style="color:#4a5a7a;font-size:11px">(pre-Sept 2012)</span></div><label class="tog"><input type="checkbox" id="sl1"><span class="tog-t"></span></label></div>
+    <div class="tog-r"><div class="tog-r-lbl">Plan 2 <span style="color:#4a5a7a;font-size:11px">(2012–2023)</span></div><label class="tog"><input type="checkbox" id="sl2"><span class="tog-t"></span></label></div>
+    <div class="tog-r"><div class="tog-r-lbl">Plan 4 <span style="color:#4a5a7a;font-size:11px">(Scotland)</span></div><label class="tog"><input type="checkbox" id="sl4"><span class="tog-t"></span></label></div>
+    <div class="tog-r"><div class="tog-r-lbl">Plan 5 <span style="color:#4a5a7a;font-size:11px">(Aug 2023+)</span></div><label class="tog"><input type="checkbox" id="sl5"><span class="tog-t"></span></label></div>
+    <div class="tog-r"><div class="tog-r-lbl">Postgraduate Loan</div><label class="tog"><input type="checkbox" id="slPG"><span class="tog-t"></span></label></div>
+  </div>
+
+  <div class="btn-wrap">
+    <button class="cbtn" id="btnD">⚡ Calculate Take-Home Pay</button>
+  </div>
+</div>
+
+<!-- ══ RIGHT PANEL ══ -->
+<div class="right">
+
+  <div class="empty" id="emptyEl">
+    <div class="empty-icon">💷</div>
+    <p>Enter your salary and tap <strong>Calculate</strong></p>
+  </div>
+
+  <div id="resEl" style="display:none">
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="h-lbl">Monthly Take-Home Pay</div>
+      <div class="h-amt"><span class="h-cur">£</span><span id="hNet">0</span></div>
+      <div class="h-per">net per month · <span class="h-ann" id="hAnn"></span> per year</div>
+      <div class="h-stats">
+        <div class="h-stat"><div class="h-sv" id="hWk">—</div><div class="h-sl">Weekly</div></div>
+        <div class="h-stat"><div class="h-sv" id="hDay">—</div><div class="h-sl">Daily</div></div>
+        <div class="h-stat"><div class="h-sv" id="hHr">—</div><div class="h-sl">Hourly</div></div>
+        <div class="h-stat"><div class="h-sv" id="hEff">—</div><div class="h-sl">Tax Rate</div></div>
+      </div>
+    </div>
+
+    <!-- SUMMARY -->
+    <div class="sg">
+      <div class="sc"><div class="sc-l">Income Tax</div><div class="sc-v cr" id="scTax">£0</div><div class="sc-s" id="scTaxM"></div></div>
+      <div class="sc"><div class="sc-l">National Insurance</div><div class="sc-v ca" id="scNI">£0</div><div class="sc-s" id="scNIM"></div></div>
+      <div class="sc" id="scPC" style="display:none"><div class="sc-l">Pension</div><div class="sc-v cp" id="scPen">£0</div><div class="sc-s" id="scPenM"></div></div>
+      <div class="sc" id="scSLC" style="display:none"><div class="sc-l">Student Loan</div><div class="sc-v cb" id="scSL">£0</div><div class="sc-s" id="scSLM"></div></div>
+      <div class="sc" id="scOTC" style="display:none"><div class="sc-l">Overtime</div><div class="sc-v cb" id="scOT">£0</div><div class="sc-s" id="scOTM"></div></div>
+      <div class="sc" id="scEC" style="display:none"><div class="sc-l">Employer's NI</div><div class="sc-v c2" id="scENI">£0</div><div class="sc-s" id="scENIM"></div></div>
+    </div>
+
+    <!-- OT SUMMARY -->
+    <div class="ots" id="otsEl" style="display:none">
+      <div class="ots-t">⚡ Overtime Breakdown</div>
+      <div id="otLines"></div>
+    </div>
+
+    <!-- BREAKDOWN TABLE -->
+    <div class="bk">
+      <div class="bk-t">Full Pay Breakdown</div>
+      <div class="bk-h"><span>Item</span><span>Annual</span><span>Monthly</span><span>Weekly</span></div>
+      <div class="bk-r grs"><div class="bk-n"><span class="bd" style="background:#448aff"></span>Base Salary</div><div class="bk-v" id="bBa"></div><div class="bk-v" id="bBm"></div><div class="bk-v" id="bBw"></div></div>
+      <div class="bk-r add" id="bOTR" style="display:none"><div class="bk-n"><span class="bd" style="background:#40c4ff"></span>Overtime</div><div class="bk-v" id="bOa"></div><div class="bk-v" id="bOm"></div><div class="bk-v" id="bOw"></div></div>
+      <div class="bk-r add" id="bBonR" style="display:none"><div class="bk-n"><span class="bd" style="background:#ffd740"></span>Bonus</div><div class="bk-v" id="bBna"></div><div class="bk-v" id="bBnm"></div><div class="bk-v" id="bBnw"></div></div>
+      <div class="bk-r grs" id="bTGR" style="display:none"><div class="bk-n"><span class="bd" style="background:#f0f4ff"></span>Total Gross</div><div class="bk-v" id="bGa"></div><div class="bk-v" id="bGm"></div><div class="bk-v" id="bGw"></div></div>
+      <div class="bk-r ded"><div class="bk-n"><span class="bd" style="background:#ff5252"></span>Income Tax</div><div class="bk-v" id="bTa"></div><div class="bk-v" id="bTm"></div><div class="bk-v" id="bTw"></div></div>
+      <div class="bk-r ded"><div class="bk-n"><span class="bd" style="background:#ffab40"></span>National Insurance</div><div class="bk-v" id="bNa"></div><div class="bk-v" id="bNm"></div><div class="bk-v" id="bNw"></div></div>
+      <div class="bk-r ded" id="bPenR" style="display:none"><div class="bk-n"><span class="bd" style="background:#b388ff"></span>Pension</div><div class="bk-v" id="bPa"></div><div class="bk-v" id="bPm"></div><div class="bk-v" id="bPw"></div></div>
+      <div class="bk-r ded" id="bSLR" style="display:none"><div class="bk-n"><span class="bd" style="background:#40c4ff"></span>Student Loan</div><div class="bk-v" id="bSa"></div><div class="bk-v" id="bSm"></div><div class="bk-v" id="bSw"></div></div>
+      <div class="bk-r ded" id="bENIR" style="display:none"><div class="bk-n"><span class="bd" style="background:#546e7a"></span>Employer's NI</div><div class="bk-v" id="bEa"></div><div class="bk-v" id="bEm"></div><div class="bk-v" id="bEw"></div></div>
+      <div class="bk-r tot"><div class="bk-n">Take-Home Pay</div><div class="bk-v" id="bNa2"></div><div class="bk-v" id="bNm2"></div><div class="bk-v" id="bNw2"></div></div>
+    </div>
+
+    <!-- VISUAL -->
+    <div class="vc">
+      <div class="vc-t">Income Distribution</div>
+      <div class="dw">
+        <svg class="dn" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15.92" fill="none" stroke="#1e2d45" stroke-width="3.2"/>
+          <circle id="dN" cx="18" cy="18" r="15.92" fill="none" stroke="#00e676" stroke-width="3.2" stroke-dasharray="0 100"/>
+          <circle id="dT" cx="18" cy="18" r="15.92" fill="none" stroke="#ff5252" stroke-width="3.2" stroke-dasharray="0 100"/>
+          <circle id="dI" cx="18" cy="18" r="15.92" fill="none" stroke="#ffab40" stroke-width="3.2" stroke-dasharray="0 100"/>
+          <circle id="dP" cx="18" cy="18" r="15.92" fill="none" stroke="#b388ff" stroke-width="3.2" stroke-dasharray="0 100"/>
+        </svg>
+        <div class="leg">
+          <div class="li"><span class="ld" style="background:#00e676"></span><span class="ll">Take-Home</span><span class="lp cg" id="lgN">0%</span></div>
+          <div class="li"><span class="ld" style="background:#ff5252"></span><span class="ll">Income Tax</span><span class="lp cr" id="lgT">0%</span></div>
+          <div class="li"><span class="ld" style="background:#ffab40"></span><span class="ll">NI</span><span class="lp ca" id="lgI">0%</span></div>
+          <div class="li" id="lgPI" style="display:none"><span class="ld" style="background:#b388ff"></span><span class="ll">Pension</span><span class="lp cp" id="lgP">0%</span></div>
+        </div>
+      </div>
+      <div class="bi"><div class="bh"><span class="bn">Take-Home</span><span class="bv cg" id="brNv"></span></div><div class="bt"><div class="bf" id="brN" style="background:#00e676;width:0%"></div></div></div>
+      <div class="bi"><div class="bh"><span class="bn">Income Tax</span><span class="bv cr" id="brTv"></span></div><div class="bt"><div class="bf" id="brT" style="background:#ff5252;width:0%"></div></div></div>
+      <div class="bi"><div class="bh"><span class="bn">National Insurance</span><span class="bv ca" id="brIv"></span></div><div class="bt"><div class="bf" id="brI" style="background:#ffab40;width:0%"></div></div></div>
+      <div class="bi" id="brPI" style="display:none"><div class="bh"><span class="bn">Pension</span><span class="bv cp" id="brPv"></span></div><div class="bt"><div class="bf" id="brP" style="background:#b388ff;width:0%"></div></div></div>
+    </div>
+
+    <button class="xbtn dsk-x" id="xlD"><div class="xi">X</div>Download Excel Report</button>
+
+  </div>
+</div>
+</div>
+
+<!-- MOBILE BAR -->
+<div class="mob">
+  <button class="cbtn" id="btnM">⚡ Calculate</button>
+  <button class="mob-x" id="xlM">📊</button>
+</div>
+
+<script>
+// ── TAX DATA ──
+const TY = {
+  '2627':{PA:12570,bl:3070,bands:[{l:37700,r:.20},{l:125140,r:.40},{l:1e9,r:.45}],scot:[{l:2306,r:.19},{l:13991,r:.20},{l:31092,r:.21},{l:62430,r:.42},{l:125140,r:.45},{l:1e9,r:.48}],nL:12570,nH:50270,nM:.08,nHr:.02,eT:9500,eR:.138,s1:{t:24990,r:.09},s2:{t:27295,r:.09},s4:{t:31395,r:.09},s5:{t:25000,r:.09},sP:{t:21000,r:.06}},
+  '2526':{PA:12570,bl:2870,bands:[{l:37700,r:.20},{l:125140,r:.40},{l:1e9,r:.45}],scot:[{l:2306,r:.19},{l:13991,r:.20},{l:31092,r:.21},{l:62430,r:.42},{l:125140,r:.45},{l:1e9,r:.48}],nL:12570,nH:50270,nM:.08,nHr:.02,eT:9100,eR:.138,s1:{t:24990,r:.09},s2:{t:27295,r:.09},s4:{t:31395,r:.09},s5:{t:25000,r:.09},sP:{t:21000,r:.06}},
+  '2425':{PA:12570,bl:2870,bands:[{l:37700,r:.20},{l:125140,r:.40},{l:1e9,r:.45}],scot:[{l:2162,r:.19},{l:13118,r:.20},{l:31092,r:.21},{l:62430,r:.42},{l:125140,r:.45},{l:1e9,r:.48}],nL:12570,nH:50270,nM:.08,nHr:.02,eT:9100,eR:.138,s1:{t:24990,r:.09},s2:{t:27295,r:.09},s4:{t:31395,r:.09},s5:{t:25000,r:.09},sP:{t:21000,r:.06}}
+};
+
+// ── HELPERS ──
+const num = s => parseFloat((s+'').replace(/,/g,'')) || 0;
+const f = n => '£' + Math.round(n).toLocaleString('en-GB');
+const f2 = n => '£' + n.toFixed(2);
+const el = id => document.getElementById(id);
+const tx = (id,v) => { const e=el(id); if(e) e.textContent=v; };
+const sh = (id,v) => { const e=el(id); if(e) e.style.display=v?'':'none'; };
+
+function calcTax(gross, PA, bands) {
+  const tax = Math.max(0, gross - PA);
+  let t=0, prev=0;
+  for (const b of bands) {
+    const ins = Math.min(tax - prev, b.l - prev);
+    if (ins <= 0) break;
+    t += ins * b.r;
+    prev = b.l;
+    if (tax <= b.l) break;
+  }
+  return t;
+}
+function calcNI(g, ty) {
+  if (g <= ty.nL) return 0;
+  return (Math.min(g, ty.nH) - ty.nL) * ty.nM + Math.max(0, g - ty.nH) * ty.nHr;
+}
+function calcSL(g, ty) {
+  let t=0;
+  if (el('sl1').checked) t += Math.max(0, g-ty.s1.t)*ty.s1.r;
+  if (el('sl2').checked) t += Math.max(0, g-ty.s2.t)*ty.s2.r;
+  if (el('sl4').checked) t += Math.max(0, g-ty.s4.t)*ty.s4.r;
+  if (el('sl5').checked) t += Math.max(0, g-ty.s5.t)*ty.s5.r;
+  if (el('slPG').checked) t += Math.max(0, g-ty.sP.t)*ty.sP.r;
+  return t;
+}
+
+// ── STATE ──
+let period = 'annual';
+let last = null;
+
+// ── CALCULATE ──
+function calc() {
+  const ty = TY[el('tyear').value];
+  const hrs = num(el('hrs').value) || 40;
+  const bonV = num(el('bonus').value);
+  const raw = num(el('salIn').value);
+
+  let base;
+  if (period==='annual')  base = raw;
+  else if (period==='monthly') base = raw*12;
+  else if (period==='weekly')  base = raw*52;
+  else base = raw*hrs*52;
+
+  if (base <= 0 && bonV <= 0) return;
+
+  const bHr = base / (hrs*52);
+  const h1=num(el('ot1').value), h2=num(el('ot2').value), h3=num(el('ot3').value);
+  const otM = h1*bHr*1.25 + h2*bHr*1.5 + h3*bHr*2;
+  const otA = otM*12;
+  const hasOT = otA > 0;
+
+  let gross = base + bonV + otA;
+
+  let PA = ty.PA + (el('blind').checked ? ty.bl : 0);
+  if (gross > 100000) PA = Math.max(0, PA - (gross-100000)/2);
+  const tc = el('tcode').value.trim().toUpperCase();
+  if (tc && /^\d{3,4}[LM]?$/.test(tc)) PA = parseInt(tc)*10;
+
+  const penType = el('penT').value;
+  const penScheme = el('pScheme').value;
+  let pen = 0;
+  if (penType==='pct') pen = gross * (num(el('pPct').value)/100);
+  else if (penType==='amt') pen = num(el('pAmt').value)*12;
+
+  let taxable = gross;
+  if (penScheme==='sacrifice') taxable = Math.max(0, gross-pen);
+
+  const scot = el('scot').checked;
+  const tax = calcTax(taxable, PA, scot ? ty.scot : ty.bands);
+  const ni = el('noNI').checked ? 0 : calcNI(taxable, ty);
+  const eni = Math.max(0, (gross-ty.eT)*ty.eR);
+  const sl = calcSL(gross, ty);
+  const postPen = penScheme!=='sacrifice' ? pen : 0;
+  const net = gross - tax - ni - sl - postPen;
+  const eff = gross>0 ? (tax+ni)/gross*100 : 0;
+  const sENI = el('showENI').checked;
+
+  last = {base,bonV,otA,otM,gross,PA,tax,ni,eni,sl,pen,net,eff,hrs,sENI,hasOT,hasPen:pen>0,hasSL:sl>0,hasBon:bonV>0,h1,h2,h3,bHr,tyKey:el('tyear').value};
+  render(last);
+}
+
+// ── RENDER ──
+function row(a,m,w,pa,pm,pw) {
+  tx(pa,f(a)); tx(pm,f(m||a/12)); tx(pw,f(w||a/52));
+}
+
+function render(d) {
+  el('emptyEl').style.display='none';
+  el('resEl').style.display='block';
+
+  tx('hNet', Math.round(d.net/12).toLocaleString('en-GB'));
+  tx('hAnn', f(d.net));
+  tx('hWk',  f(d.net/52));
+  tx('hDay', f(d.net/260));
+  tx('hHr',  '£'+(d.net/(d.hrs*52)).toFixed(2));
+  tx('hEff', d.eff.toFixed(1)+'%');
+
+  tx('scTax',f(d.tax)); tx('scTaxM',f(d.tax/12)+'/month');
+  tx('scNI', f(d.ni));  tx('scNIM', f(d.ni/12)+'/month');
+  sh('scPC', d.hasPen);  if(d.hasPen){ tx('scPen',f(d.pen)); tx('scPenM',f(d.pen/12)+'/month'); }
+  sh('scSLC',d.hasSL);   if(d.hasSL){  tx('scSL',f(d.sl));   tx('scSLM',f(d.sl/12)+'/month'); }
+  sh('scOTC',d.hasOT);   if(d.hasOT){  tx('scOT',f(d.otA));  tx('scOTM',f2(d.otM)+'/month'); }
+  sh('scEC', d.sENI);    if(d.sENI){   tx('scENI',f(d.eni)); tx('scENIM',f(d.eni/12)+'/month'); }
+
+  sh('otsEl',d.hasOT);
+  if(d.hasOT){
+    let h='';
+    if(d.h1>0) h+=`<div class="ot-line"><span>×1.25 · ${d.h1}h/mo</span><span>${f2(d.h1*d.bHr*1.25)}/month</span></div>`;
+    if(d.h2>0) h+=`<div class="ot-line"><span>×1.50 · ${d.h2}h/mo</span><span>${f2(d.h2*d.bHr*1.5)}/month</span></div>`;
+    if(d.h3>0) h+=`<div class="ot-line"><span>×2.00 · ${d.h3}h/mo</span><span>${f2(d.h3*d.bHr*2)}/month</span></div>`;
+    h+=`<div class="ot-line" style="border-top:1px solid rgba(68,138,255,.2);margin-top:6px;padding-top:6px;font-weight:700;color:#448aff"><span>Total</span><span>${f2(d.otM)}/month · ${f(d.otA)}/year</span></div>`;
+    el('otLines').innerHTML=h;
+  }
+
+  tx('bBa',f(d.base)); tx('bBm',f(d.base/12)); tx('bBw',f(d.base/52));
+  sh('bOTR',d.hasOT);  if(d.hasOT){ tx('bOa',f(d.otA)); tx('bOm',f(d.otM)); tx('bOw',f(d.otA/52)); }
+  sh('bBonR',d.hasBon);if(d.hasBon){tx('bBna',f(d.bonV));tx('bBnm',f(d.bonV/12));tx('bBnw',f(d.bonV/52));}
+  sh('bTGR',d.hasOT||d.hasBon); if(d.hasOT||d.hasBon){tx('bGa',f(d.gross));tx('bGm',f(d.gross/12));tx('bGw',f(d.gross/52));}
+  tx('bTa',f(d.tax)); tx('bTm',f(d.tax/12)); tx('bTw',f(d.tax/52));
+  tx('bNa',f(d.ni));  tx('bNm',f(d.ni/12));  tx('bNw',f(d.ni/52));
+  sh('bPenR',d.hasPen);if(d.hasPen){tx('bPa',f(d.pen));tx('bPm',f(d.pen/12));tx('bPw',f(d.pen/52));}
+  sh('bSLR',d.hasSL); if(d.hasSL){tx('bSa',f(d.sl));tx('bSm',f(d.sl/12));tx('bSw',f(d.sl/52));}
+  sh('bENIR',d.sENI); if(d.sENI){tx('bEa',f(d.eni));tx('bEm',f(d.eni/12));tx('bEw',f(d.eni/52));}
+  tx('bNa2',f(d.net)); tx('bNm2',f(d.net/12)); tx('bNw2',f(d.net/52));
+
+  // Donut
+  const G=d.gross;
+  const nP=d.net/G*100, tP=d.tax/G*100, iP=d.ni/G*100, pP=d.pen/G*100;
+  let off=0;
+  function seg(id,p,o){const e=el(id);if(!e)return o;e.setAttribute('stroke-dasharray',p+' '+(100-p));e.setAttribute('stroke-dashoffset',-o);return o+p;}
+  off=seg('dN',nP,off); off=seg('dT',tP,off); off=seg('dI',iP,off); seg('dP',pP,off);
+  tx('lgN',nP.toFixed(1)+'%'); tx('lgT',tP.toFixed(1)+'%'); tx('lgI',iP.toFixed(1)+'%');
+  sh('lgPI',d.hasPen); if(d.hasPen) tx('lgP',pP.toFixed(1)+'%');
+
+  function bar(fi,vi,val){const e=el(fi);if(e)e.style.width=Math.min(val/G*100,100)+'%';tx(vi,f(val));}
+  bar('brN','brNv',d.net); bar('brT','brTv',d.tax); bar('brI','brIv',d.ni);
+  sh('brPI',d.hasPen); if(d.hasPen) bar('brP','brPv',d.pen);
+}
+
+// ── EXCEL ──
+function exportXL(){
+  if(!last){alert('Calculate first!');return;}
+  const d=last;
+  const WB=XLSX.utils.book_new();
+  const tyL=d.tyKey==='2627'?'2026/27':d.tyKey==='2526'?'2025/26':'2024/25';
+  const rows=[
+    ['UK TAKE-HOME PAY CALCULATOR','','','',''],
+    ['Tax Year:',tyL,'','',''],
+    ['Generated:',new Date().toLocaleDateString('en-GB'),'','',''],
+    ['','','','',''],
+    ['Item','Annual (£)','Monthly (£)','Weekly (£)','Daily (£)'],
+    ['Base Salary',d.base,d.base/12,d.base/52,d.base/260],
+  ];
+  if(d.hasBon) rows.push(['Bonus',d.bonV,d.bonV/12,d.bonV/52,d.bonV/260]);
+  if(d.hasOT)  rows.push(['Overtime',d.otA,d.otM,d.otA/52,d.otA/260]);
+  if(d.hasOT||d.hasBon) rows.push(['Total Gross',d.gross,d.gross/12,d.gross/52,d.gross/260]);
+  rows.push(['Income Tax',d.tax,d.tax/12,d.tax/52,d.tax/260]);
+  rows.push(['National Insurance',d.ni,d.ni/12,d.ni/52,d.ni/260]);
+  if(d.hasPen) rows.push(['Pension',d.pen,d.pen/12,d.pen/52,d.pen/260]);
+  if(d.hasSL)  rows.push(['Student Loan',d.sl,d.sl/12,d.sl/52,d.sl/260]);
+  if(d.sENI)   rows.push(["Employer's NI",d.eni,d.eni/12,d.eni/52,d.eni/260]);
+  rows.push(['NET TAKE-HOME',d.net,d.net/12,d.net/52,d.net/260]);
+  rows.push(['','','','','']);
+  rows.push(['Effective Tax Rate',(d.eff/100).toFixed(4),'','','']);
+  rows.push(['Hourly Net Rate',+(d.net/(d.hrs*52)).toFixed(2),'','','']);
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:24},{wch:14},{wch:14},{wch:14},{wch:14}];
+  for(let r=5;r<rows.length;r++) for(let c=1;c<=4;c++){const ref=XLSX.utils.encode_cell({r,c});if(ws[ref]&&typeof ws[ref].v==='number')ws[ref].z='#,##0.00';}
+  XLSX.utils.book_append_sheet(WB,ws,'Summary');
+  if(d.hasOT){
+    const or=[['OVERTIME','','',''],['Base Hourly Rate',+d.bHr.toFixed(4),'',''],['','','',''],['Rate','Monthly Hrs','Hourly Rate','Monthly Pay']];
+    if(d.h1>0)or.push(['×1.25',d.h1,+(d.bHr*1.25).toFixed(4),+(d.h1*d.bHr*1.25).toFixed(2)]);
+    if(d.h2>0)or.push(['×1.50',d.h2,+(d.bHr*1.5).toFixed(4),+(d.h2*d.bHr*1.5).toFixed(2)]);
+    if(d.h3>0)or.push(['×2.00',d.h3,+(d.bHr*2).toFixed(4),+(d.h3*d.bHr*2).toFixed(2)]);
+    or.push(['Total','','',+d.otM.toFixed(2)]);
+    const ws2=XLSX.utils.aoa_to_sheet(or);
+    ws2['!cols']=[{wch:18},{wch:12},{wch:14},{wch:14}];
+    XLSX.utils.book_append_sheet(WB,ws2,'Overtime');
+  }
+  XLSX.writeFile(WB,'UK_Pay_'+tyL.replace('/','_')+'.xlsx');
+}
+
+// ── EVENTS ──
+el('btnD').addEventListener('click', calc);
+el('btnM').addEventListener('click', calc);
+el('xlD').addEventListener('click', exportXL);
+el('xlM').addEventListener('click', exportXL);
+el('salIn').addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();calc();} });
+
+document.querySelectorAll('.pill').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.pill').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    period = b.dataset.p;
+  });
+});
+
+el('penT').addEventListener('change', e => {
+  el('pPctF').style.display = e.target.value==='pct' ? '' : 'none';
+  el('pAmtF').style.display = e.target.value==='amt' ? '' : 'none';
+});
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
